@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useMemo, useRef, useState} from 'react';
 import {MessageProcessor, type A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
 import {telecomCatalog} from './a2ui/catalog';
@@ -7,35 +7,58 @@ import type {DebugMeta} from './types';
 
 const suggestions = ['查一下我的套餐', '我的流量还剩多少？', '给我办个20G 30天通用流量包', '看看最近业务情况'];
 
+type TimelineItem =
+  | {id: string; type: 'user'; text: string}
+  | {id: string; type: 'surface'; surfaceId: string};
+
+function getSurfaceId(message: Record<string, unknown>) {
+  for (const key of ['createSurface', 'updateComponents', 'updateDataModel', 'deleteSurface']) {
+    const payload = message[key] as {surfaceId?: unknown} | undefined;
+    if (typeof payload?.surfaceId === 'string') return payload.surfaceId;
+  }
+  return undefined;
+}
+
 export default function App() {
   const actionRef = useRef<(action: A2uiClientAction) => void>(() => undefined);
   const sessionId = useMemo(() => `demo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, []);
   const processor = useMemo(() => new MessageProcessor([basicCatalog, telecomCatalog], action => actionRef.current(action)), []);
-  const [surfaces, setSurfaces] = useState(() => Array.from(processor.model.surfacesMap.values()));
-  const [messages, setMessages] = useState<string[]>(['你好']);
+  const [timeline, setTimeline] = useState<TimelineItem[]>([
+    {id: 'user-welcome', type: 'user', text: '你好'},
+  ]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [debug, setDebug] = useState(true);
   const [debugMeta, setDebugMeta] = useState<DebugMeta | null>(null);
   const [raw, setRaw] = useState<unknown[]>([]);
 
-  useEffect(() => {
-    const sync = () => setSurfaces(Array.from(processor.model.surfacesMap.values()));
-    const c = processor.onSurfaceCreated(sync);
-    const d = processor.onSurfaceDeleted(sync);
-    return () => { c.unsubscribe(); d.unsubscribe(); };
-  }, [processor]);
+  const moveSurfaceAfterLatestUser = (surfaceId: string) => {
+    setTimeline(prev => [
+      ...prev.filter(item => !(item.type === 'surface' && item.surfaceId === surfaceId)),
+      {id: `surface-${surfaceId}`, type: 'surface', surfaceId},
+    ]);
+  };
 
   const consumeStream = async (url: string, body: unknown) => {
-    const response = await fetch(url, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)});
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error(await response.text());
+
     await readNdjson(response, item => {
       const obj = item as Record<string, unknown>;
       if (obj.demoDebug) {
         setDebugMeta(obj.demoDebug as unknown as DebugMeta);
         return;
       }
+
       setRaw(prev => [...prev.slice(-19), item]);
       processor.processMessages([item] as never[]);
+
+      const surfaceId = getSurfaceId(obj);
+      if (surfaceId) moveSurfaceAfterLatestUser(surfaceId);
     });
   };
 
@@ -47,12 +70,24 @@ export default function App() {
   const submit = async (value = input) => {
     const text = value.trim();
     if (!text || busy) return;
-    setMessages(prev => [...prev, text]);
+
+    setTimeline(prev => [
+      ...prev,
+      {id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type: 'user', text},
+    ]);
     setInput('');
     setBusy(true);
-    try { await consumeStream('/api/chat/stream', {message: text, sessionId}); }
-    finally { setBusy(false); }
+
+    try {
+      await consumeStream('/api/chat/stream', {message: text, sessionId});
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const surfaceById = (surfaceId: string) =>
+    processor.model.surfacesMap.get(surfaceId) ??
+    Array.from(processor.model.surfacesMap.values()).find(surface => surface.id === surfaceId);
 
   return (
     <main className="page-shell">
@@ -60,8 +95,15 @@ export default function App() {
         <div className="phone-screen">
           <header className="app-header"><span className="plane">✦</span><strong>AI专属服务</strong><label>调试开关 <input type="checkbox" checked={debug} onChange={e=>setDebug(e.target.checked)} /><i /></label></header>
           <div className="chat-scroll">
-            {messages.map((m, i) => <div className="user-bubble" key={`${m}-${i}`}>{m}</div>)}
-            {surfaces.map(surface => <div className="assistant-block" key={surface.id}><A2uiSurface surface={surface} /></div>)}
+            {timeline.map(item => {
+              if (item.type === 'user') {
+                return <div className="user-bubble" key={item.id}>{item.text}</div>;
+              }
+              const surface = surfaceById(item.surfaceId);
+              return surface
+                ? <div className="assistant-block" key={item.id}><A2uiSurface surface={surface} /></div>
+                : null;
+            })}
             {busy && <div className="typing">AI 正在处理<span>•••</span></div>}
           </div>
           <div className="composer-wrap">

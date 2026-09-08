@@ -8,5 +8,10 @@
     "strict": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "server"]
+  "include": [
+    "vite.config.ts",
+    "server",
+    "src/types.ts",
+    "src/a2ui/constants.ts"
+  ]
 }

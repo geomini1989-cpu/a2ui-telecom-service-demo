@@ -4,13 +4,16 @@ import cors from 'cors';
 import {classify} from './classifier.js';
 import {planTurn} from './planner.js';
 import {getSession, pushHistory, sessionSnapshot} from './session-store.js';
-import {accountSurface, findOrder, orderSurface, packagesSurface, resultSurface} from './a2ui-builder.js';
+import {accountSurface, findOrder, findOrderByParams, orderSurface, packagesSurface, resultSurface} from './a2ui-builder.js';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+const isExplicitNaturalLanguageConfirmation = (message: string) =>
+  /^确认办理[。！!]?$/.test(message.trim());
 
 const send = async (res: express.Response, items: unknown[]) => {
   res.setHeader('content-type', 'application/x-ndjson; charset=utf-8');
@@ -28,6 +31,77 @@ app.post('/api/chat/stream', async (req, res) => {
     const sessionId = String(req.body?.sessionId ?? 'default');
     const session = getSession(sessionId);
     pushHistory(session, 'user', message);
+
+    if (session.taskState === 'confirm_order' && session.surfaceId && session.catalog === 'business') {
+      if (isExplicitNaturalLanguageConfirmation(message)) {
+        const surfaceId = session.surfaceId;
+        session.taskState = 'completed';
+        session.selectedCard = 'ResultCard';
+
+        pushHistory(session, 'assistant', 'completed -> ResultCard');
+
+        await send(res, [
+          {
+            demoDebug: {
+              intent: session.activeTask ?? 'traffic_purchase',
+              parameters: {explicitConfirmation: true},
+              mergedSlots: session.slots,
+              context: sessionSnapshot(session),
+              plannerDecision: {
+                reason: 'explicit_natural_language_confirmation',
+                confirmationText: '确认办理',
+                requiresExplicitConfirmation: true,
+              },
+              uiStrategy: 'replace_component',
+              catalog: 'business',
+              classifier: 'mock',
+              llmCalled: false,
+              llmStatus: 'not_called',
+              skill: 'executeOrder',
+              taskState: 'completed',
+              selectedCard: 'ResultCard',
+              surfaceId,
+            },
+          },
+          ...resultSurface(surfaceId, undefined, undefined, false),
+        ]);
+        return;
+      }
+
+      const pendingOrder = findOrderByParams(session.slots);
+      if (pendingOrder) {
+        const surfaceId = session.surfaceId;
+        pushHistory(session, 'assistant', 'confirm_order -> OrderConfirmCard');
+
+        await send(res, [
+          {
+            demoDebug: {
+              intent: session.activeTask ?? 'traffic_purchase',
+              parameters: {},
+              mergedSlots: session.slots,
+              context: sessionSnapshot(session),
+              plannerDecision: {
+                reason: 'explicit_confirmation_required',
+                rejectedAsConfirmation: message,
+                acceptedNaturalLanguageConfirmation: '确认办理',
+                requiresExplicitConfirmation: true,
+              },
+              uiStrategy: 'replace_component',
+              catalog: 'business',
+              classifier: 'mock',
+              llmCalled: false,
+              llmStatus: 'not_called',
+              skill: 'awaitExplicitConfirmation',
+              taskState: 'confirm_order',
+              selectedCard: 'OrderConfirmCard',
+              surfaceId,
+            },
+          },
+          ...orderSurface(surfaceId, pendingOrder, false),
+        ]);
+        return;
+      }
+    }
 
     const classification = await classify(message, {
       activeTask: session.activeTask,

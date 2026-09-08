@@ -119,19 +119,25 @@ export function planTurn(
           },
         };
       } else if (order) {
+        const selection = {
+          type: String(session.slots.type ?? (order.type === '通用流量' ? 'general' : 'directed')),
+          duration: String(session.slots.duration ?? (order.duration === '30天' ? '30d' : '7d')),
+          packageId: order.packageId,
+        };
         result = {
-          skill: 'getTrafficPackages + buildOrderPreview',
-          taskState: 'confirm_order',
-          selectedCard: 'OrderConfirmCard',
+          skill: 'getTrafficPackages',
+          taskState: 'select_package',
+          selectedCard: 'TrafficPackageCard',
           uiStrategy: reuseBusinessSurface ? 'replace_component' : 'create_surface',
           catalog: 'business',
           surfaceId,
-          messages: orderSurface(surfaceId, order, !reuseBusinessSurface),
+          messages: packagesSurface(surfaceId, !reuseBusinessSurface, selection),
           plannerDecision: {
-            reason: hasTrafficSlots(session.slots) ? 'parameters_complete' : 'constraint_resolved',
+            reason: hasTrafficSlots(session.slots) ? 'parameters_complete_requires_user_confirmation' : 'constraint_resolved_requires_user_confirmation',
             parametersComplete: hasTrafficSlots(session.slots),
             selectedPackage: order.packageId,
-            skippedPackageSelection: true,
+            skippedPackageSelection: false,
+            requiresExplicitConfirmation: true,
           },
         };
       } else {

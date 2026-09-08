@@ -4,6 +4,8 @@ export interface Classification {
   intent: Intent;
   parameters: Record<string, unknown>;
   classifier: 'mock' | 'llm';
+  llmCalled?: boolean;
+  llmStatus?: 'not_called' | 'success' | 'fallback';
 }
 
 export interface ClassificationContext {
@@ -13,14 +15,19 @@ export interface ClassificationContext {
 }
 
 export async function classify(message: string, context: ClassificationContext = {}): Promise<Classification> {
-  if (process.env.LLM_MODE === 'openai-compatible' && process.env.LLM_API_KEY && process.env.LLM_MODEL) {
+  const llmConfigured = process.env.LLM_MODE === 'openai-compatible' && Boolean(process.env.LLM_API_KEY) && Boolean(process.env.LLM_MODEL);
+
+  if (llmConfigured) {
     try {
-      return await classifyWithLlm(message, context);
+      const result = await classifyWithLlm(message, context);
+      return {...result, llmCalled: true, llmStatus: 'success'};
     } catch (error) {
       console.warn('LLM classifier failed, fallback to mock:', error);
+      return {...mockClassify(message, context), classifier: 'mock', llmCalled: true, llmStatus: 'fallback'};
     }
   }
-  return {...mockClassify(message, context), classifier: 'mock'};
+
+  return {...mockClassify(message, context), classifier: 'mock', llmCalled: false, llmStatus: 'not_called'};
 }
 
 function mockClassify(message: string, context: ClassificationContext): Omit<Classification, 'classifier'> {

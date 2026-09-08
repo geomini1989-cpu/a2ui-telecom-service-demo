@@ -115,7 +115,7 @@ export default function App() {
       {debug && <aside className="debug-panel">
         <div className="debug-header"><div><span>DEMO INSPECTOR</span><h2>A2UI 调试视图</h2></div><b>v0.9.1</b></div>
         {debugMeta ? <div className="debug-grid">
-          <DebugItem label="Intent" value={debugMeta.intent}/><DebugItem label="Classifier" value={debugMeta.classifier}/><DebugItem label="Skill" value={debugMeta.skill}/><DebugItem label="Task State" value={debugMeta.taskState}/><DebugItem label="Selected Card" value={debugMeta.selectedCard}/><DebugItem label="Surface" value={debugMeta.surfaceId}/>
+          <DebugItem label="Intent" value={debugMeta.intent}/><DebugItem label="Classifier" value={debugMeta.classifier}/><DebugItem label="LLM Called" value={debugMeta.llmCalled ? 'YES' : 'NO'}/><DebugItem label="LLM Status" value={debugMeta.llmStatus ?? '-'}/><DebugItem label="Skill" value={debugMeta.skill}/><DebugItem label="Task State" value={debugMeta.taskState}/><DebugItem label="Selected Card" value={debugMeta.selectedCard}/><DebugItem label="Surface" value={debugMeta.surfaceId}/>
           <DebugItem label="UI Strategy" value={debugMeta.uiStrategy ?? '-'}/><DebugItem label="Catalog" value={debugMeta.catalog ?? '-'}/>
           <div className="debug-wide"><label>Extracted Parameters</label><pre>{JSON.stringify(debugMeta.parameters,null,2)}</pre></div>
           <div className="debug-wide"><label>Merged Slots</label><pre>{JSON.stringify(debugMeta.mergedSlots ?? {},null,2)}</pre></div>

@@ -10,6 +10,10 @@ export {TELECOM_CATALOG_ID};
 
 const pct = (used: number, total: number) => Math.min(100, Math.round((used / total) * 100));
 
+function LoadingCard() {
+  return <section className="telecom-card"><div className="typing">正在同步 A2UI DataModel<span>•••</span></div></section>;
+}
+
 function UsageLine({label, used, total, unit}: {label: string; used: number; total: number; unit: string}) {
   return (
     <div className="usage-line">
@@ -34,7 +38,8 @@ const AccountOverviewCardApi = {
 };
 
 const AccountOverviewCard = createComponentImplementation(AccountOverviewCardApi, ({props}) => {
-  const data = props.data as unknown as AccountData;
+  const data = props.data as unknown as AccountData | undefined;
+  if (!data?.traffic || !data?.voice || !data?.sms) return <LoadingCard />;
   return (
     <section className="telecom-card account-card">
       <div className="card-eyebrow">AI专属服务为您查询到以下信息：</div>
@@ -70,7 +75,8 @@ const TrafficDetailCardApi = {
   }),
 };
 const TrafficDetailCard = createComponentImplementation(TrafficDetailCardApi, ({props}) => {
-  const data = props.data as unknown as AccountData;
+  const data = props.data as unknown as AccountData | undefined;
+  if (!data?.traffic) return <LoadingCard />;
   const remaining = data.traffic.total - data.traffic.used;
   return (
     <section className="telecom-card">
@@ -95,7 +101,7 @@ const TrafficPackageCardApi = {
   }),
 };
 const TrafficPackageCard = createComponentImplementation(TrafficPackageCardApi, ({props}) => {
-  const packages = props.packages as unknown as TrafficPackage[];
+  const packages = Array.isArray(props.packages) ? (props.packages as unknown as TrafficPackage[]) : [];
   const visible = packages.filter(p => p.type === props.selectedType && p.duration === props.selectedDuration);
   const selected = packages.find(p => p.id === props.selectedPackageId);
   return (
@@ -125,7 +131,8 @@ const OrderConfirmCardApi = {
   schema: z.object({data: CommonSchemas.DynamicValue, onConfirm: CommonSchemas.Action, onCancel: CommonSchemas.Action}),
 };
 const OrderConfirmCard = createComponentImplementation(OrderConfirmCardApi, ({props}) => {
-  const data = props.data as unknown as OrderData;
+  const data = props.data as unknown as OrderData | undefined;
+  if (!data?.packageId) return <LoadingCard />;
   return <section className="telecom-card confirm-card">
     <div className="confirm-icon">✓</div><h2>确认办理</h2><p>请确认以下业务信息</p>
     <dl><div><dt>手机号</dt><dd>{data.phone}</dd></div><div><dt>流量包</dt><dd>{data.title}</dd></div><div><dt>有效期</dt><dd>{data.duration}</dd></div><div><dt>费用</dt><dd className="price">¥{data.price}</dd></div></dl>
@@ -138,7 +145,8 @@ const ResultCardApi = {
   schema: z.object({data: CommonSchemas.DynamicValue, onBack: CommonSchemas.Action}),
 };
 const ResultCard = createComponentImplementation(ResultCardApi, ({props}) => {
-  const data = props.data as unknown as {title: string; description: string};
+  const data = props.data as unknown as {title: string; description: string} | undefined;
+  if (!data?.title) return <LoadingCard />;
   return <section className="telecom-card result-card"><div className="result-mark">✓</div><h2>{data.title}</h2><p>{data.description}</p><button className="primary-wide" onClick={props.onBack}>返回账户总览</button></section>;
 });
 
@@ -147,7 +155,8 @@ const BillCardApi = {
   schema: z.object({data: CommonSchemas.DynamicValue, onBack: CommonSchemas.Action}),
 };
 const BillCard = createComponentImplementation(BillCardApi, ({props}) => {
-  const data = props.data as unknown as {month: string; total: number; items: {label: string; value: number}[]};
+  const data = props.data as unknown as {month: string; total: number; items: {label: string; value: number}[]} | undefined;
+  if (!data?.items) return <LoadingCard />;
   return <section className="telecom-card"><div className="card-heading"><div><small>{data.month}</small><h2>本月账单 ¥{data.total.toFixed(2)}</h2></div><span className="chip">已出账</span></div><div className="bill-list">{data.items.map(i => <div key={i.label}><span>{i.label}</span><b>¥{i.value.toFixed(2)}</b></div>)}</div><button className="primary-wide" onClick={props.onBack}>返回账户</button></section>;
 });
 
@@ -156,7 +165,8 @@ const AnalyticsCardApi = {
   schema: z.object({data: CommonSchemas.DynamicValue, selectedRange: CommonSchemas.DynamicString}),
 };
 const AnalyticsCard = createComponentImplementation(AnalyticsCardApi, ({props}) => {
-  const data = props.data as unknown as AnalyticsData;
+  const data = props.data as unknown as AnalyticsData | undefined;
+  if (!data?.ranges) return <LoadingCard />;
   const current = data.ranges[props.selectedRange] ?? data.ranges['30d'];
   const axis = {axisLine: {lineStyle: {color: '#77719b'}}, axisLabel: {color: '#b7b0d9', fontSize: 10}, splitLine: {lineStyle: {color: 'rgba(255,255,255,.08)'}}};
   return <section className="telecom-card analytics-card">

@@ -121,7 +121,7 @@ const TrafficPackageCard = createComponentImplementation(TrafficPackageCardApi, 
         </button>)}
       </div>
       <div className="selection-summary"><span>当前选择</span><b>{selected ? `${selected.title} · ¥${selected.price}` : '请选择套餐'}</b></div>
-      <div className="card-actions"><button className="ghost" onClick={props.onBack}>返回</button><button disabled={!selected} onClick={props.onSubmit}>立即办理</button></div>
+      <div className="card-actions"><button className="ghost" onClick={props.onBack}>返回</button><button disabled={!selected} onClick={props.onSubmit}>去确认</button></div>
     </section>
   );
 });

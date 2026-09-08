@@ -9,6 +9,11 @@ export type Intent =
 export interface DebugMeta {
   intent: Intent;
   parameters: Record<string, unknown>;
+  mergedSlots?: Record<string, unknown>;
+  context?: Record<string, unknown>;
+  plannerDecision?: Record<string, unknown>;
+  uiStrategy?: string;
+  catalog?: string;
   skill: string;
   taskState: string;
   selectedCard: string;

@@ -59,7 +59,9 @@ export function planTurn(
   requestedSurfaceId?: string,
 ): PlanResult {
   const previousIntent = session.activeTask;
+  const previousCatalog = session.catalog;
   const sameTask = previousIntent === classification.intent;
+  const requestedCanReuseBusinessSurface = Boolean(requestedSurfaceId && previousCatalog === 'business');
   if (!sameTask) {
     session.slots = {};
     session.uiSelection = {};
@@ -70,7 +72,10 @@ export function planTurn(
   session.activeTask = classification.intent;
   session.slots = {...session.slots, ...classification.parameters};
 
-  const reuseBusinessSurface = Boolean(sameTask && session.surfaceId && session.catalog === 'business');
+  const reuseBusinessSurface = Boolean(
+    requestedCanReuseBusinessSurface ||
+    (sameTask && session.surfaceId && session.catalog === 'business')
+  );
   const surfaceId = requestedSurfaceId ?? (reuseBusinessSurface ? session.surfaceId! : newSurface());
 
   let result: PlanResult;

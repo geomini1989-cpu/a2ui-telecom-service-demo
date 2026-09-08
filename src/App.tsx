@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {MessageProcessor, type A2uiClientAction} from '@a2ui/web_core/v0_9';
-import {A2uiSurface} from '@a2ui/react/v0_9';
+import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
 import {telecomCatalog} from './a2ui/catalog';
 import {readNdjson} from './lib/ndjson';
 import type {DebugMeta} from './types';
@@ -9,7 +9,8 @@ const suggestions = ['查一下我的套餐', '我的流量还剩多少？', '�
 
 export default function App() {
   const actionRef = useRef<(action: A2uiClientAction) => void>(() => undefined);
-  const processor = useMemo(() => new MessageProcessor([telecomCatalog], action => actionRef.current(action)), []);
+  const sessionId = useMemo(() => `demo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, []);
+  const processor = useMemo(() => new MessageProcessor([basicCatalog, telecomCatalog], action => actionRef.current(action)), []);
   const [surfaces, setSurfaces] = useState(() => Array.from(processor.model.surfacesMap.values()));
   const [messages, setMessages] = useState<string[]>(['你好']);
   const [input, setInput] = useState('');
@@ -40,7 +41,7 @@ export default function App() {
 
   actionRef.current = action => {
     setBusy(true);
-    void consumeStream('/api/action/stream', {action}).finally(() => setBusy(false));
+    void consumeStream('/api/action/stream', {action, sessionId}).finally(() => setBusy(false));
   };
 
   const submit = async (value = input) => {
@@ -49,7 +50,7 @@ export default function App() {
     setMessages(prev => [...prev, text]);
     setInput('');
     setBusy(true);
-    try { await consumeStream('/api/chat/stream', {message: text}); }
+    try { await consumeStream('/api/chat/stream', {message: text, sessionId}); }
     finally { setBusy(false); }
   };
 
@@ -73,7 +74,11 @@ export default function App() {
         <div className="debug-header"><div><span>DEMO INSPECTOR</span><h2>A2UI 调试视图</h2></div><b>v0.9.1</b></div>
         {debugMeta ? <div className="debug-grid">
           <DebugItem label="Intent" value={debugMeta.intent}/><DebugItem label="Classifier" value={debugMeta.classifier}/><DebugItem label="Skill" value={debugMeta.skill}/><DebugItem label="Task State" value={debugMeta.taskState}/><DebugItem label="Selected Card" value={debugMeta.selectedCard}/><DebugItem label="Surface" value={debugMeta.surfaceId}/>
-          <div className="debug-wide"><label>Parameters</label><pre>{JSON.stringify(debugMeta.parameters,null,2)}</pre></div>
+          <DebugItem label="UI Strategy" value={debugMeta.uiStrategy ?? '-'}/><DebugItem label="Catalog" value={debugMeta.catalog ?? '-'}/>
+          <div className="debug-wide"><label>Extracted Parameters</label><pre>{JSON.stringify(debugMeta.parameters,null,2)}</pre></div>
+          <div className="debug-wide"><label>Merged Slots</label><pre>{JSON.stringify(debugMeta.mergedSlots ?? {},null,2)}</pre></div>
+          <div className="debug-wide"><label>Planner Decision</label><pre>{JSON.stringify(debugMeta.plannerDecision ?? {},null,2)}</pre></div>
+          <div className="debug-wide"><label>Task Context</label><pre>{JSON.stringify(debugMeta.context ?? {},null,2)}</pre></div>
         </div> : <p className="empty-debug">输入一句话后，这里会展示 Intent → Skill → Card → Surface。</p>}
         <div className="protocol-log"><div className="protocol-title"><h3>A2UI Messages</h3><span>{raw.length}</span></div>{raw.slice(-6).map((m,i)=><pre key={i}>{JSON.stringify(m,null,2)}</pre>)}</div>
       </aside>}

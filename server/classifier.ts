@@ -93,6 +93,7 @@ async function classifyWithLlm(message: string, context: ClassificationContext):
     },
     body: JSON.stringify({
       model: process.env.LLM_MODEL,
+      thinking: {type: 'disabled'},
       temperature: 0,
       response_format: {type: 'json_object'},
       messages: [

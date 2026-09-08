@@ -19,6 +19,8 @@ export interface DebugMeta {
   selectedCard: string;
   surfaceId: string;
   classifier: 'mock' | 'llm';
+  llmCalled?: boolean;
+  llmStatus?: 'not_called' | 'success' | 'fallback';
 }
 
 export interface AccountData {

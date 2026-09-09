@@ -22,6 +22,7 @@ export interface DebugMeta {
   llmCalled?: boolean;
   llmStatus?: 'not_called' | 'success' | 'fallback';
   agentName?: string;
+  agentMode?: string;
   agentTrace?: Array<{
     step: number;
     kind: string;

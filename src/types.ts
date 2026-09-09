@@ -21,6 +21,14 @@ export interface DebugMeta {
   classifier: 'mock' | 'llm';
   llmCalled?: boolean;
   llmStatus?: 'not_called' | 'success' | 'fallback';
+  agentName?: string;
+  agentTrace?: Array<{
+    step: number;
+    kind: string;
+    label: string;
+    detail: unknown;
+  }>;
+  agentDecision?: Record<string, unknown>;
 }
 
 export interface AccountData {

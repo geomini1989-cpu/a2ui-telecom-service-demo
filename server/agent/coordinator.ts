@@ -127,6 +127,7 @@ const SYSTEM_PROMPT = [
   '必须通过工具获取账户、流量、套餐、账单和业务指标事实，不得臆造业务数据。',
   '如果用户说流量不够、掉得快、撑不到月底、想要合适/划算套餐，先调用 getTrafficUsage，再调用 getTrafficPackages；准备推荐具体套餐时再调用 validateBalance。',
   '如果用户明确指定套餐条件，也应调用 getTrafficPackages 获取真实候选。',
+  '办理场景中，如果 getTrafficPackages 返回唯一候选，或你准备推荐一个具体套餐，最终输出前必须调用 validateBalance。',
   'executeOrder 不在你的工具列表中。你绝不能声称已经办理、扣费或执行交易。',
   '涉及办理时你的最高权限只是推荐套餐或进入待确认状态，最终执行由服务端显式确认门负责。',
   '结合 activeTask、taskState、slots 和最近对话理解“要30天的”“20G吧”“换成半年”等省略表达。',
@@ -433,7 +434,46 @@ async function runLlmToolCallingAgent(
     : {};
 
   let parameters = sanitizeParameters(finalPayload.parameters);
+
+  // Business invariant: a concrete package must be balance-validated before UI planning.
+  // DeepSeek normally calls validateBalance itself; this guard only fills the gap if it forgets.
+  const packageObservations = observations
+    .filter(item => item.skill === 'getTrafficPackages' && Array.isArray(item.output));
+  const latestPackages = packageObservations.length
+    ? packageObservations[packageObservations.length - 1].output as TrafficPackage[]
+    : [];
+
+  if (typeof parameters.recommendedPackageId !== 'string' && latestPackages.length === 1) {
+    parameters.recommendedPackageId = latestPackages[0].id;
+    if (typeof parameters.recommendationReason !== 'string') {
+      parameters.recommendationReason = typeof decision.summary === 'string'
+        ? decision.summary
+        : `当前条件只匹配到 ${latestPackages[0].title}。`;
+    }
+  }
+
   parameters = enrichAndValidateAgentParameters(parameters, decision, observations);
+
+  const concretePackageId = typeof parameters.recommendedPackageId === 'string'
+    ? parameters.recommendedPackageId
+    : undefined;
+  const hasBalanceObservation = observations.some(item => item.skill === 'validateBalance');
+
+  if (concretePackageId && !hasBalanceObservation) {
+    const validation = await runSkill('validateBalance', {packageId: concretePackageId}, session, false);
+    observations.push(validation);
+    trace.push({
+      step: trace.length + 1,
+      kind: 'skill',
+      label: 'validateBalance observation (business guard)',
+      detail: {
+        enforcedBy: 'business_policy',
+        summary: validation.summary,
+        output: validation.output,
+      },
+    });
+    parameters = enrichAndValidateAgentParameters(parameters, decision, observations);
+  }
 
   const classification: Classification = {
     intent: normalizeIntent(finalPayload.intent, context.activeTask),

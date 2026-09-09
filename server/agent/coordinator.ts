@@ -140,6 +140,7 @@ export async function runCoordinatorAgent(
               ? `按“最便宜”条件推荐 ${selected.title}。`
               : `已根据当前条件定位到 ${selected.title}。`),
           balanceSufficient: Boolean(balance.sufficient),
+          balanceAmount: typeof balance.balance === 'number' ? balance.balance : undefined,
         };
 
         decision.recommendedPackageId = selected.id;

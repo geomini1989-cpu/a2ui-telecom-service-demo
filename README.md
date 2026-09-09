@@ -2,7 +2,7 @@
 
 一个面向内部技术演示的 **React + A2UI v0.9.1 + 业务级 Custom Catalog** 项目。
 
-> 核心边界：**LLM 负责理解用户意图与提取参数；业务代码负责确定性路由；A2UI 负责 Surface / Component / DataModel / Action；React 负责卡片的固定结构与样式。**
+> 核心边界：**DeepSeek Coordinator 负责理解任务并自主调用只读 Skills；业务代码负责 Tool 执行、安全确认与 UI Policy；A2UI 负责 Surface / Component / DataModel / Action；React 负责固定业务组件的结构与样式。**
 
 ## 为什么这样做
 
@@ -48,24 +48,24 @@ ResultCard
 “给我办个20G、30天、通用流量包”
 ```
 
-LLM 提取完整参数后可以直接进入 `OrderConfirmCard`，跳过不必要的页面步骤。
+Agent 会先通过 `getTrafficPackages` 获取真实候选，可以在 `TrafficPackageCard` 中预选对应套餐，但不会直接办理；仍需用户进入 `OrderConfirmCard` 后显式确认。
 
 ## Coordinator Agent + Skills
 
-当前聊天主链路已经从单纯的 `classifier -> planner` 升级为：
+当前聊天主链路已经升级为 DeepSeek Tool Calling Loop：
 
 ```text
 User
   ↓
 TelecomCoordinatorAgent
   ↓
-Task Understanding (DeepSeek / mock)
+DeepSeek decides tool call
   ↓
-Skill
+Read-only Skill
   ↓
-Observation
+Observation returned to DeepSeek
   ↓
-Coordinator Decision
+DeepSeek decides next tool / final task result
   ↓
 UI Planner
   ↓
@@ -74,7 +74,7 @@ A2UI
 React
 ```
 
-Coordinator 当前可编排的 Skills：
+DeepSeek 可自主调用的只读 Skills：
 
 - `getAccountInfo`
 - `getTrafficUsage`
@@ -82,9 +82,8 @@ Coordinator 当前可编排的 Skills：
 - `getBill`
 - `getBusinessMetrics`
 - `validateBalance`
-- `executeOrder`
 
-其中 `executeOrder` 是有副作用 Skill，**Agent 不能自主调用**。只有用户点击“确认办理”，或在 `confirm_order` 状态明确输入“确认办理”，服务端确认门才能授权执行。
+`executeOrder` 是有副作用 Skill，**不会暴露给 DeepSeek**。只有用户点击“确认办理”，或在 `confirm_order` 状态明确输入“确认办理”，服务端 Confirmation Gate 才能授权执行。
 
 例如：
 
@@ -104,7 +103,7 @@ Observation: 余额是否足够
 TrafficPackageCard
 ```
 
-右侧 Debug Inspector 会显示 `Agent`、`Agent Trace`、`Agent Decision`，用于观察每一步 Skill 调用和 Observation。
+右侧 Debug Inspector 会显示 `Agent`、`Agent Mode`、`Agent Trace`、`Agent Decision`。`Agent Mode = llm_tool_calling` 表示该轮由 DeepSeek 自主选择 Tool；`deterministic_fallback` 表示模型调用失败或未配置时回退到本地逻辑。
 
 ## A2UI 链路
 
@@ -161,20 +160,7 @@ LLM_API_KEY=...
 LLM_MODEL=...
 ```
 
-模型被严格限制为只输出：
-
-```json
-{
-  "intent": "traffic_purchase",
-  "parameters": {
-    "sizeGb": 20,
-    "duration": "30d",
-    "type": "general"
-  }
-}
-```
-
-模型不输出 Card 名、样式、React 代码或 A2UI 组件树。
+模型现在不只是做分类：它会收到 `tools` 与 `tool_choice: auto`，可以返回 `tool_calls`。服务端执行只读 Skill 后把 Observation 以 `role=tool` 回传给 DeepSeek，直到模型输出结构化 Task Result。模型仍然不输出 Card 名、样式、React 代码或 A2UI 组件树。
 
 ## 推荐演示脚本
 
@@ -194,13 +180,13 @@ Selected Card AccountOverviewCard
 
 在账户卡点 **办流量** → `TrafficPackageCard`。
 
-规格选择不会调用 LLM；选择状态通过 A2UI DataModel 绑定维护。点击 **立即办理** 才发送 A2UI Action。
+规格选择不会重复调用 LLM；选择状态通过 A2UI DataModel 绑定维护。点击 **去确认** 才进入 `OrderConfirmCard`，之后必须显式“确认办理”。
 
-### 3. 自然语言跳步骤
+### 3. DeepSeek Tool Calling
 
-输入：`给我办个20G 30天通用流量包`
+输入：`我最近流量掉得挺快，帮我推荐个便宜点、能用一个月的流量包`
 
-直接进入 `OrderConfirmCard`。
+观察 `Agent Mode = llm_tool_calling`，以及 `Agent Trace` 中 DeepSeek 自主调用 `getTrafficUsage -> getTrafficPackages -> validateBalance` 的过程。
 
 ### 4. 数据分析
 
@@ -240,17 +226,22 @@ src/
 └── styles.css
 
 server/
-├── classifier.ts         # LLM / mock intent classifier
-├── router.ts             # Intent → Skill → Task State
+├── agent/
+│   └── coordinator.ts    # DeepSeek Tool Calling Loop
+├── skills/               # 业务 Skills + registry
+├── classifier.ts         # deterministic fallback understanding
+├── planner.ts            # Task Result → UI state
 ├── a2ui-builder.ts       # Task State → A2UI messages
-├── mock-data.ts          # 演示业务数据
+├── basic-builder.ts      # Basic Catalog dynamic UI
+├── session-store.ts
+├── mock-data.ts
 └── index.ts              # Chat/Action stream endpoints
 ```
 
 ## 设计原则
 
 1. **业务卡片样式固定**，不允许 LLM 改布局。
-2. **LLM 只处理模糊自然语言**；明确按钮 Action 走确定性路由。
+2. **DeepSeek 可自主调用只读 Tool**；明确按钮 Action 走确定性路由。
 3. **卡片内筛选/规格选择不反复请求 LLM**。
 4. **Task State 比 Intent 更接近真正的页面控制状态**。
 5. **Debug 模式必须能看到 Intent → Skill → Card → A2UI messages**。

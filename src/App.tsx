@@ -117,6 +117,9 @@ export default function App() {
         {debugMeta ? <div className="debug-grid">
           <DebugItem label="Intent" value={debugMeta.intent}/><DebugItem label="Classifier" value={debugMeta.classifier}/><DebugItem label="LLM Called" value={debugMeta.llmCalled ? 'YES' : 'NO'}/><DebugItem label="LLM Status" value={debugMeta.llmStatus ?? '-'}/><DebugItem label="Skill" value={debugMeta.skill}/><DebugItem label="Task State" value={debugMeta.taskState}/><DebugItem label="Selected Card" value={debugMeta.selectedCard}/><DebugItem label="Surface" value={debugMeta.surfaceId}/>
           <DebugItem label="UI Strategy" value={debugMeta.uiStrategy ?? '-'}/><DebugItem label="Catalog" value={debugMeta.catalog ?? '-'}/>
+          <DebugItem label="Agent" value={debugMeta.agentName ?? '-'}/>
+          <div className="debug-wide"><label>Agent Trace</label><pre>{JSON.stringify(debugMeta.agentTrace ?? [],null,2)}</pre></div>
+          <div className="debug-wide"><label>Agent Decision</label><pre>{JSON.stringify(debugMeta.agentDecision ?? {},null,2)}</pre></div>
           <div className="debug-wide"><label>Extracted Parameters</label><pre>{JSON.stringify(debugMeta.parameters,null,2)}</pre></div>
           <div className="debug-wide"><label>Merged Slots</label><pre>{JSON.stringify(debugMeta.mergedSlots ?? {},null,2)}</pre></div>
           <div className="debug-wide"><label>Planner Decision</label><pre>{JSON.stringify(debugMeta.plannerDecision ?? {},null,2)}</pre></div>

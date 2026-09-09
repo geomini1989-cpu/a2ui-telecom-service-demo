@@ -30,7 +30,7 @@ export async function classify(message: string, context: ClassificationContext =
   return {...mockClassify(message, context), classifier: 'mock', llmCalled: false, llmStatus: 'not_called'};
 }
 
-function mockClassify(message: string, context: ClassificationContext): Omit<Classification, 'classifier'> {
+export function mockClassify(message: string, context: ClassificationContext): Omit<Classification, 'classifier'> {
   const m = message.toLowerCase();
   const parameters: Record<string, unknown> = {};
 

@@ -96,6 +96,7 @@ const TrafficPackageCardApi = {
     selectedType: CommonSchemas.DynamicString,
     selectedDuration: CommonSchemas.DynamicString,
     selectedPackageId: CommonSchemas.DynamicString,
+    recommendationText: CommonSchemas.DynamicString,
     onSubmit: CommonSchemas.Action,
     onBack: CommonSchemas.Action,
   }),
@@ -115,6 +116,7 @@ const TrafficPackageCard = createComponentImplementation(TrafficPackageCardApi, 
         <button className={props.selectedDuration === '7d' ? 'active' : ''} onClick={() => props.setSelectedDuration('7d')}>7天</button>
         <button className={props.selectedDuration === '30d' ? 'active' : ''} onClick={() => props.setSelectedDuration('30d')}>30天</button>
       </div></div>
+      {props.recommendationText ? <div className="notice">{props.recommendationText}</div> : null}
       <div className="package-list">
         {visible.map(item => <button key={item.id} className={`package-option ${props.selectedPackageId === item.id ? 'selected' : ''}`} onClick={() => props.setSelectedPackageId(item.id)}>
           <span><b>{item.sizeGb}GB</b><small>{item.title}</small></span><strong>¥{item.price}</strong>

@@ -110,7 +110,7 @@ export function planTurn(
           catalog: 'basic',
           surfaceId: basicSurfaceId,
           messages: insufficientBalanceSurface(basicSurfaceId, {
-            balance: account.balance,
+            balance: typeof session.slots.balanceAmount === 'number' ? session.slots.balanceAmount : 0,
             price: order.price,
             packageTitle: order.title,
           }),

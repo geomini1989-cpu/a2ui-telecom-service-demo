@@ -1,10 +1,11 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import {classify} from './classifier.js';
+import {runCoordinatorAgent} from './agent/coordinator.js';
 import {planTurn} from './planner.js';
 import {getSession, pushHistory, sessionSnapshot} from './session-store.js';
 import {accountSurface, findOrder, findOrderByParams, orderSurface, packagesSurface, resultSurface} from './a2ui-builder.js';
+import {runSkill} from './skills/registry.js';
 
 const app = express();
 app.use(cors());
@@ -35,6 +36,11 @@ app.post('/api/chat/stream', async (req, res) => {
     if (session.taskState === 'confirm_order' && session.surfaceId && session.catalog === 'business') {
       if (isExplicitNaturalLanguageConfirmation(message)) {
         const surfaceId = session.surfaceId;
+        const pendingOrder = findOrderByParams(session.slots);
+        if (!pendingOrder) throw new Error('No pending order to confirm');
+
+        const execution = await runSkill('executeOrder', {packageId: pendingOrder.packageId}, session, true);
+
         session.taskState = 'completed';
         session.selectedCard = 'ResultCard';
 
@@ -52,6 +58,12 @@ app.post('/api/chat/stream', async (req, res) => {
                 confirmationText: '确认办理',
                 requiresExplicitConfirmation: true,
               },
+              agentName: 'SafetyConfirmationGate',
+              agentTrace: [
+                {step: 1, kind: 'decision', label: 'Explicit confirmation guard', detail: {accepted: true, text: '确认办理'}},
+                {step: 2, kind: 'skill', label: 'executeOrder', detail: {summary: execution.summary, output: execution.output}},
+              ],
+              agentDecision: {authorizedSideEffect: true, packageId: pendingOrder.packageId},
               uiStrategy: 'replace_component',
               catalog: 'business',
               classifier: 'mock',
@@ -63,7 +75,7 @@ app.post('/api/chat/stream', async (req, res) => {
               surfaceId,
             },
           },
-          ...resultSurface(surfaceId, undefined, undefined, false),
+          ...resultSurface(surfaceId, '办理成功', execution.summary, false),
         ]);
         return;
       }
@@ -103,21 +115,24 @@ app.post('/api/chat/stream', async (req, res) => {
       }
     }
 
-    const classification = await classify(message, {
+    const agent = await runCoordinatorAgent(message, session, {
       activeTask: session.activeTask,
       slots: session.slots,
       history: session.history,
     });
 
-    const routed = planTurn(session, classification);
+    const routed = planTurn(session, agent.classification);
     pushHistory(session, 'assistant', `${routed.taskState} -> ${routed.selectedCard}`);
 
     await send(res, [
       {
         demoDebug: {
-          ...classification,
+          ...agent.classification,
           mergedSlots: session.slots,
           context: sessionSnapshot(session),
+          agentName: agent.agentName,
+          agentTrace: agent.trace,
+          agentDecision: agent.decision,
           plannerDecision: routed.plannerDecision,
           uiStrategy: routed.uiStrategy,
           catalog: routed.catalog,
@@ -211,6 +226,9 @@ app.post('/api/action/stream', async (req, res) => {
       }
 
       case 'confirm_order': {
+        const packageId = String(a.context?.packageId || '');
+        const execution = await runSkill('executeOrder', {packageId}, session, true);
+
         session.taskState = 'completed';
         session.selectedCard = 'ResultCard';
         session.surfaceId = a.surfaceId;
@@ -220,7 +238,12 @@ app.post('/api/action/stream', async (req, res) => {
         selectedCard = 'ResultCard';
         uiStrategy = 'replace_component';
         catalog = 'business';
-        messages = resultSurface(a.surfaceId, undefined, undefined, false);
+        plannerDecision = {
+          reason: 'explicit_button_confirmation',
+          authorizedSideEffect: true,
+          skillObservation: execution.summary,
+        };
+        messages = resultSurface(a.surfaceId, '办理成功', execution.summary, false);
         break;
       }
 

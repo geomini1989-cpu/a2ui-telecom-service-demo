@@ -1,6 +1,5 @@
 import type {Classification} from './classifier.js';
 import type {TaskSession} from './session-store.js';
-import {account} from './mock-data.js';
 import {trafficPackages} from './mock-data.js';
 import {
   accountSurface,
@@ -35,6 +34,11 @@ function hasTrafficSlots(slots: Record<string, unknown>) {
 }
 
 function selectTrafficPackage(slots: Record<string, unknown>) {
+  if (typeof slots.recommendedPackageId === 'string') {
+    const recommended = trafficPackages.find(p => p.id === slots.recommendedPackageId);
+    if (recommended) return findOrder(recommended.id);
+  }
+
   const maxPrice = typeof slots.maxPrice === 'number' ? slots.maxPrice : undefined;
   let candidates = trafficPackages.filter(p =>
     (slots.sizeGb ? p.sizeGb === slots.sizeGb : true) &&
@@ -96,7 +100,7 @@ export function planTurn(
 
     case 'traffic_purchase': {
       const order = selectTrafficPackage(session.slots);
-      if (order && order.price > account.balance) {
+      if (order && session.slots.balanceSufficient === false) {
         const basicSurfaceId = newSurface('recovery');
         result = {
           skill: 'validateBalance',
@@ -114,7 +118,7 @@ export function planTurn(
             reason: 'balance_insufficient',
             parametersComplete: hasTrafficSlots(session.slots),
             selectedPackage: order.packageId,
-            balance: account.balance,
+            balance: 'validated_by_skill',
             required: order.price,
           },
         };
@@ -123,6 +127,7 @@ export function planTurn(
           type: String(session.slots.type ?? (order.type === '通用流量' ? 'general' : 'directed')),
           duration: String(session.slots.duration ?? (order.duration === '30天' ? '30d' : '7d')),
           packageId: order.packageId,
+          recommendationText: typeof session.slots.recommendationReason === 'string' ? session.slots.recommendationReason : undefined,
         };
         result = {
           skill: 'getTrafficPackages',

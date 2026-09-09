@@ -194,6 +194,26 @@ Selected Card AccountOverviewCard
 
 进入 `AnalyticsCard`。切换 **近7天 / 近30天 / 近半年** 时卡片结构不变，只改变绑定状态和图表数据。
 
+### 5. Basic Catalog 长尾异常
+
+输入：
+
+```text
+给我办100G 30天通用流量包
+```
+
+该套餐演示价为 ¥88，当前账户余额为 ¥56.8。Agent 查询套餐并完成余额校验后，UI Planner 会进入：
+
+```text
+Task State: insufficient_balance
+Catalog: basic
+UI Strategy: dynamic_basic_catalog
+```
+
+此时不是返回预制的业务 React 卡片，而是用 A2UI Basic Catalog 动态组合 `Card / Column / Text / Divider / Row / Button`，展示“余额不足 / 还差多少 / 看看便宜套餐 / 返回账户”的恢复界面。
+
+这用于演示：**高频稳定业务使用 Business Catalog，长尾异常场景使用 Basic Catalog 动态组合 UI。**
+
 ## 与“普通 intent -> React switch”的区别
 
 如果只是：

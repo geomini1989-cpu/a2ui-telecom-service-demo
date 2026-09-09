@@ -50,6 +50,62 @@ ResultCard
 
 LLM 提取完整参数后可以直接进入 `OrderConfirmCard`，跳过不必要的页面步骤。
 
+## Coordinator Agent + Skills
+
+当前聊天主链路已经从单纯的 `classifier -> planner` 升级为：
+
+```text
+User
+  ↓
+TelecomCoordinatorAgent
+  ↓
+Task Understanding (DeepSeek / mock)
+  ↓
+Skill
+  ↓
+Observation
+  ↓
+Coordinator Decision
+  ↓
+UI Planner
+  ↓
+A2UI
+  ↓
+React
+```
+
+Coordinator 当前可编排的 Skills：
+
+- `getAccountInfo`
+- `getTrafficUsage`
+- `getTrafficPackages`
+- `getBill`
+- `getBusinessMetrics`
+- `validateBalance`
+- `executeOrder`
+
+其中 `executeOrder` 是有副作用 Skill，**Agent 不能自主调用**。只有用户点击“确认办理”，或在 `confirm_order` 状态明确输入“确认办理”，服务端确认门才能授权执行。
+
+例如：
+
+```text
+用户：我最近流量掉得很快，帮我推荐个便宜点、能用一个月的包
+
+Coordinator
+  ↓ getTrafficUsage
+Observation: 当前剩余量 / 近期日均 / 预计缺口
+  ↓ getTrafficPackages
+Observation: 符合 30 天条件的候选套餐
+  ↓ validateBalance
+Observation: 余额是否足够
+  ↓
+推荐套餐 + 推荐理由
+  ↓
+TrafficPackageCard
+```
+
+右侧 Debug Inspector 会显示 `Agent`、`Agent Trace`、`Agent Decision`，用于观察每一步 Skill 调用和 Observation。
+
 ## A2UI 链路
 
 ```text

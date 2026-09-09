@@ -15,6 +15,7 @@ export const trafficPackages: TrafficPackage[] = [
   {id:'g30-10', type:'general', duration:'30d', sizeGb:10, price:10, title:'10GB通用流量·30天'},
   {id:'g30-20', type:'general', duration:'30d', sizeGb:20, price:18, title:'20GB通用流量·30天'},
   {id:'g30-30', type:'general', duration:'30d', sizeGb:30, price:25, title:'30GB通用流量·30天'},
+  {id:'g30-100', type:'general', duration:'30d', sizeGb:100, price:88, title:'100GB通用流量·30天'},
   {id:'d7-10', type:'directed', duration:'7d', sizeGb:10, price:5, title:'10GB视频定向·7天'},
   {id:'d30-20', type:'directed', duration:'30d', sizeGb:20, price:12, title:'20GB视频定向·30天'},
 ];

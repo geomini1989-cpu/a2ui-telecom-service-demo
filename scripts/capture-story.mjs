@@ -30,8 +30,10 @@ async function shot(name) {
 }
 
 await waitReady();
-const debugToggle = page.locator('.app-header input[type="checkbox"]');
-if (await debugToggle.isChecked()) await debugToggle.uncheck();
+await page.addStyleTag({content: `
+  .debug-panel { display: none !important; }
+  .page-shell { grid-template-columns: minmax(720px, 900px) !important; justify-content: center !important; }
+`});
 
 await submit('我最近刷视频特别猛，月底估计顶不住，看看有没有适合我的方案');
 await shot('01-agent-recommendation');

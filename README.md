@@ -1,80 +1,128 @@
 # A2UI Telecom Service Demo
 
-一个面向内部技术演示的 **React + A2UI v0.9.1 + 业务级 Custom Catalog** 项目。
+一个面向内部技术演示的 **React + A2UI v0.9.1 + DeepSeek Tool Calling + 运营商业务 Catalog** POC。
 
-> 核心边界：**DeepSeek Coordinator 负责理解任务并自主调用只读 Skills；业务代码负责 Tool 执行、安全确认与 UI Policy；A2UI 负责 Surface / Component / DataModel / Action；React 负责固定业务组件的结构与样式。**
+> 核心边界：**Agent 决定做什么；Skill 获取或执行业务能力；UI Policy 决定当前状态该展示什么；A2UI 负责表达 UI 和交互；React 负责最终视觉。**
 
-## 为什么这样做
+## 这个 Demo 想证明什么
 
-本项目不让模型临时设计 `Text / Row / Button` 的布局，而是把稳定的业务 UI 注册成 A2UI Custom Catalog：
+通通代理不必只回答文字。面对“查、选、办、异常恢复”这类任务，它可以：
+
+1. 理解用户自然语言；
+2. 自主调用只读业务 Tool；
+3. 根据业务结果形成 Task Result；
+4. 由 UI Planner 选择合适的界面策略；
+5. 通过 A2UI 把卡片、数据和 Action 交给前端；
+6. 用户继续在卡片里操作，直到任务完成。
+
+模型不生成 React，也不决定 CSS。稳定高频业务使用 Business Catalog；长尾异常可以使用 Basic Catalog 动态组合 UI。
+
+## 主演示故事
+
+建议从这一句话开始：
+
+```text
+我最近刷视频流量用得特别快，月底估计顶不住，帮我推荐个适合的方案
+```
+
+完整链路：
+
+```text
+用户自然语言
+  ↓
+TelecomCoordinatorAgent
+  ↓ getTrafficUsage
+剩余流量 + 近期使用速度 + 预计额外缺口
+  ↓ getTrafficPackages
+候选流量包
+  ↓ validateBalance（只读预检查）
+推荐套餐 + 推荐理由
+  ↓
+UI Planner
+  ↓
+Business Catalog / TrafficPackageCard
+  ↓ 用户点击“去确认”
+A2UI Action
+  ↓
+Business Guard 再次 validateBalance
+  ├─ 余额足够 → OrderConfirmCard
+  └─ 余额不足 → Basic Catalog 动态恢复 UI
+                         ↓ 看看便宜套餐
+                    TrafficPackageCard
+                         ↓ 改选可支付套餐
+                    OrderConfirmCard
+                         ↓ 确认办理
+                    executeOrder
+                         ↓
+                    ResultCard
+```
+
+Demo 数据中：
+
+- 当前通用流量剩余 17.5GB；
+- 距周期结束约 12 天；
+- 为了把“近期用量激增”场景演示清楚，近期日均按 6GB 计算；
+- 预计后续需要 72GB，额外缺口约 54.5GB；
+- 因此推荐可覆盖缺口的 100GB / 30天 / ¥88 套餐；
+- 当前账户余额 ¥56.8，用户尝试继续办理时会触发余额不足恢复 UI；
+- 点击“看看便宜套餐”后，可改选余额能够支付的套餐，例如 20GB / 30天 / ¥18；
+- 余额校验通过后进入 `OrderConfirmCard`，只有明确点击“确认办理”才会执行 `executeOrder`。
+
+这条链路同时展示 Agent、Tool Calling、Skill Observation、Task State、Business Catalog、Basic Catalog、Data Binding、A2UI Action 和交易安全边界。
+
+## Business Catalog
+
+高频业务 UI 由 React 提前开发并注册：
 
 - `AccountOverviewCard` — 账户总览
 - `TrafficDetailCard` — 流量详情
-- `TrafficPackageCard` — 流量包规格选择
+- `TrafficPackageCard` — 套餐选择 / Agent 推荐
 - `OrderConfirmCard` — 办理确认
-- `ResultCard` — 结果反馈
+- `ResultCard` — 办理结果
 - `BillCard` — 账单
-- `AnalyticsCard` — 数据分析
+- `AnalyticsCard` — 业务数据分析
 
-组件本身由 React 写死；Agent/A2UI 在运行时决定**当前 Surface 使用哪张卡、绑定什么数据、何时切换或更新、Action 如何回传**。
+它们的结构和样式是稳定的。Agent 不会临时写 React，而是通过 Task Result 和 UI Policy 让 A2UI 选择、绑定和更新这些组件。
 
-## 产品体验
+## Basic Catalog
 
-体验参考“自然语言进入任务 → 卡片内确定性交互 → Action 推进任务”的任务型 AI UI：
+长尾状态不一定值得提前开发一张专用业务页面。
 
-```text
-用户：给我办流量
-        ↓
-LLM: traffic_purchase
-        ↓
-Skill: getTrafficPackages
-        ↓
-A2UI: TrafficPackageCard
-        ↓
-用户在卡片里选择 类型 / 有效期 / 容量
-        ↓
-A2UI Action: purchase_traffic_package
-        ↓
-OrderConfirmCard
-        ↓
-confirm_order
-        ↓
-ResultCard
-```
-
-如果用户一次把参数说完整：
+本 Demo 的余额不足场景会使用 A2UI Basic Catalog 动态组合：
 
 ```text
-“给我办个20G、30天、通用流量包”
+Card
+└─ Column
+   ├─ Text：余额不足
+   ├─ Text：当前余额 / 套餐价格
+   ├─ Divider
+   ├─ Text：还差多少
+   └─ Row
+      ├─ Button：看看便宜套餐
+      └─ Button：返回账户
 ```
 
-Agent 会先通过 `getTrafficPackages` 获取真实候选，可以在 `TrafficPackageCard` 中预选对应套餐，但不会直接办理；仍需用户进入 `OrderConfirmCard` 后显式确认。
+这说明 A2UI 不只是“后端决定 React switch”。稳定场景可以走业务组件，异常或长尾状态也可以在受控 Catalog 内动态组织 UI。
 
-## Coordinator Agent + Skills
+## DeepSeek Coordinator + Skills
 
-当前聊天主链路已经升级为 DeepSeek Tool Calling Loop：
+配置模型后，聊天主链路使用原生 Tool Calling Loop：
 
 ```text
 User
   ↓
-TelecomCoordinatorAgent
-  ↓
-DeepSeek decides tool call
-  ↓
-Read-only Skill
-  ↓
-Observation returned to DeepSeek
-  ↓
-DeepSeek decides next tool / final task result
-  ↓
+DeepSeek
+  ↓ tool_calls
+Readonly Skill
+  ↓ Observation
+DeepSeek
+  ↓ 下一 Tool / 最终 Task Result
 UI Planner
   ↓
 A2UI
-  ↓
-React
 ```
 
-DeepSeek 可自主调用的只读 Skills：
+Agent 可自主调用的只读 Skills：
 
 - `getAccountInfo`
 - `getTrafficUsage`
@@ -83,55 +131,105 @@ DeepSeek 可自主调用的只读 Skills：
 - `getBusinessMetrics`
 - `validateBalance`
 
-`executeOrder` 是有副作用 Skill，**不会暴露给 DeepSeek**。只有用户点击“确认办理”，或在 `confirm_order` 状态明确输入“确认办理”，服务端 Confirmation Gate 才能授权执行。
+`executeOrder` 有副作用，**不会暴露给 DeepSeek 自主调用**。只有用户进入确认状态并明确确认后，服务端才能授权执行。
 
-例如：
+这是一条重要安全边界：
 
 ```text
-用户：我最近流量掉得很快，帮我推荐个便宜点、能用一个月的包
-
-Coordinator
-  ↓ getTrafficUsage
-Observation: 当前剩余量 / 近期日均 / 预计缺口
-  ↓ getTrafficPackages
-Observation: 符合 30 天条件的候选套餐
-  ↓ validateBalance
-Observation: 余额是否足够
-  ↓
-推荐套餐 + 推荐理由
-  ↓
-TrafficPackageCard
+模型可以理解、查询、推荐、预校验
+            ↓
+不能自行扣费 / 办理
+            ↓
+用户显式确认 + 服务端 Guard
+            ↓
+executeOrder
 ```
 
-右侧 Debug Inspector 会显示 `Agent`、`Agent Mode`、`Agent Trace`、`Agent Decision`。`Agent Mode = llm_tool_calling` 表示该轮由 DeepSeek 自主选择 Tool；`deterministic_fallback` 表示模型调用失败或未配置时回退到本地逻辑。
+## A2UI 在链路里的位置
 
-## A2UI 链路
+A2UI 不是 LLM，也不是 React 框架。它位于 Agent/业务层与前端之间：
 
 ```text
-Natural Language
+Agent / Task Result
       ↓
-Intent / Parameters
-      ↓
-Task Router
-      ↓
-Skill
+UI Planner
       ↓
 A2UI Builder
       ↓
-createSurface
-updateComponents
-updateDataModel
+createSurface / updateComponents / updateDataModel
+      ↓ NDJSON
+MessageProcessor
       ↓
-MessageProcessor (@a2ui/web_core/v0_9)
+Catalog + Data Binding
       ↓
-Custom Catalog (@a2ui/react/v0_9)
+React UI
       ↓
-React Business Card
+A2UI Action
       ↓
-Action → Next Task State
+业务服务端
 ```
 
-服务端返回 NDJSON，逐条发送 A2UI 消息，便于观察 progressive rendering。
+项目保留了真实 A2UI 的 Surface 生命周期、Catalog、DataModel、Binding、Action 和 NDJSON 消息流，而不是用一个 `intent -> React component` 的普通 switch 来模拟。
+
+## 关键 Task State
+
+```text
+traffic_purchase
+  ├─ select_package        → TrafficPackageCard      / business
+  ├─ insufficient_balance  → BasicCatalogRecoveryUI  / basic
+  ├─ confirm_order         → OrderConfirmCard        / business
+  └─ completed             → ResultCard              / business
+```
+
+UI 的选择依据是“当前任务 + 当前状态 + 业务结果”，而不是只看用户第一句话的 Intent。
+
+## 其他演示场景
+
+### 账户和流量
+
+```text
+查一下我的套餐
+→ AccountOverviewCard
+
+我的流量还剩多少？
+→ TrafficDetailCard
+```
+
+### 账单
+
+```text
+查一下我的账单
+→ BillCard
+```
+
+### 数据分析
+
+```text
+看看最近业务情况
+→ AnalyticsCard
+```
+
+在 AnalyticsCard 内切换近7天 / 近30天 / 近半年时，结构不变，只更新绑定状态和图表数据，可观察 `updateDataModel`。
+
+## Debug Inspector
+
+右侧调试面板用于把“为什么返回这张卡”讲清楚，重点观察：
+
+- `Agent Mode`
+- `Agent Trace`
+- `Agent Decision`
+- `Task State`
+- `Selected Card`
+- `Catalog`
+- `UI Strategy`
+- A2UI Messages
+
+常见 Agent Mode：
+
+- `llm_tool_calling`：DeepSeek 正常自主选择只读 Tool；
+- `deterministic_fallback`：模型未配置或调用失败时的确定性兜底；
+- `deterministic_action`：卡片上的明确 A2UI Action；
+- `confirmation_gate`：办理前的自然语言显式确认门。
 
 ## 本地运行
 
@@ -140,137 +238,44 @@ npm install
 npm run dev
 ```
 
-- React/Vite: `http://localhost:5173`
-- Demo server: `http://localhost:8787`
+- React / Vite：`http://localhost:5173`
+- Demo server：`http://localhost:8787`
 
-默认不需要模型 API：`LLM_MODE=mock` 使用确定性的关键词分类器。
+默认可以不配置模型，走 deterministic fallback。
 
-要接 OpenAI-compatible API：
-
-```bash
-cp .env.example .env
-```
-
-然后设置：
+配置 OpenAI-compatible / DeepSeek：
 
 ```env
 LLM_MODE=openai-compatible
-LLM_BASE_URL=https://your-endpoint/v1
+LLM_BASE_URL=https://api.deepseek.com
 LLM_API_KEY=...
 LLM_MODEL=...
+PORT=8787
 ```
-
-模型现在不只是做分类：它会收到 `tools` 与 `tool_choice: auto`，可以返回 `tool_calls`。服务端执行只读 Skill 后把 Observation 以 `role=tool` 回传给 DeepSeek，直到模型输出结构化 Task Result。模型仍然不输出 Card 名、样式、React 代码或 A2UI 组件树。
-
-## 推荐演示脚本
-
-### 1. 账户查询
-
-输入：`查一下我的套餐`
-
-观察 Debug 面板：
-
-```text
-Intent        account_query
-Skill         getAccountInfo
-Selected Card AccountOverviewCard
-```
-
-### 2. 卡片 Action 推进任务
-
-在账户卡点 **办流量** → `TrafficPackageCard`。
-
-规格选择不会重复调用 LLM；选择状态通过 A2UI DataModel 绑定维护。点击 **去确认** 才进入 `OrderConfirmCard`，之后必须显式“确认办理”。
-
-### 3. DeepSeek Tool Calling
-
-输入：`我最近流量掉得挺快，帮我推荐个便宜点、能用一个月的流量包`
-
-观察 `Agent Mode = llm_tool_calling`，以及 `Agent Trace` 中 DeepSeek 自主调用 `getTrafficUsage -> getTrafficPackages -> validateBalance` 的过程。
-
-### 4. 数据分析
-
-输入：`看看最近业务情况`
-
-进入 `AnalyticsCard`。切换 **近7天 / 近30天 / 近半年** 时卡片结构不变，只改变绑定状态和图表数据。
-
-### 5. Basic Catalog 长尾异常
-
-输入：
-
-```text
-给我办100G 30天通用流量包
-```
-
-该套餐演示价为 ¥88，当前账户余额为 ¥56.8。Agent 查询套餐并完成余额校验后，UI Planner 会进入：
-
-```text
-Task State: insufficient_balance
-Catalog: basic
-UI Strategy: dynamic_basic_catalog
-```
-
-此时不是返回预制的业务 React 卡片，而是用 A2UI Basic Catalog 动态组合 `Card / Column / Text / Divider / Row / Button`，展示“余额不足 / 还差多少 / 看看便宜套餐 / 返回账户”的恢复界面。
-
-这用于演示：**高频稳定业务使用 Business Catalog，长尾异常场景使用 Basic Catalog 动态组合 UI。**
-
-## 与“普通 intent -> React switch”的区别
-
-如果只是：
-
-```tsx
-if (intent === 'traffic') return <TrafficCard />;
-```
-
-那只是 Intent Routing。
-
-这个 Demo 中仍然保留真实 A2UI 协议层：
-
-- Surface 生命周期
-- Custom Catalog
-- `updateComponents`
-- `updateDataModel`
-- Data Binding
-- Client Action
-- NDJSON 流式消息
-
-因此它展示的是 **业务级 Custom Catalog 的 A2UI 用法**，而不是用 JSON 伪装的 React switch。
 
 ## 目录
 
 ```text
 src/
-├── a2ui/catalog.tsx      # 自定义业务 Catalog + React implementation
-├── App.tsx               # Chat UI + MessageProcessor + Debug inspector
-├── lib/ndjson.ts         # NDJSON 流读取
+├── a2ui/catalog.tsx      # Business Catalog + React implementations
+├── App.tsx               # Chat UI + MessageProcessor + Debug Inspector
+├── lib/ndjson.ts
 └── styles.css
 
 server/
-├── agent/
-│   └── coordinator.ts    # DeepSeek Tool Calling Loop
+├── agent/coordinator.ts  # DeepSeek Tool Calling Loop
 ├── skills/               # 业务 Skills + registry
 ├── classifier.ts         # deterministic fallback understanding
-├── planner.ts            # Task Result → UI state
-├── a2ui-builder.ts       # Task State → A2UI messages
-├── basic-builder.ts      # Basic Catalog dynamic UI
+├── planner.ts            # Task Result → UI Policy
+├── a2ui-builder.ts       # Business Catalog A2UI messages
+├── basic-builder.ts      # Basic Catalog recovery UI
 ├── session-store.ts
 ├── mock-data.ts
-└── index.ts              # Chat/Action stream endpoints
+└── index.ts              # Chat / Action / Confirmation Guard
 ```
 
-## 设计原则
+## 当前边界
 
-1. **业务卡片样式固定**，不允许 LLM 改布局。
-2. **DeepSeek 可自主调用只读 Tool**；明确按钮 Action 走确定性路由。
-3. **卡片内筛选/规格选择不反复请求 LLM**。
-4. **Task State 比 Intent 更接近真正的页面控制状态**。
-5. **Debug 模式必须能看到 Intent → Skill → Card → A2UI messages**。
-6. 当前目标协议为 **A2UI v0.9.1**。
+这是用于内部技术预研的完整 POC，不是生产系统。目前业务数据和 `executeOrder` 都是 Demo/mock；尚未接真实 BSS / CRM / 计费 / 订单系统，也没有完整生产权限、幂等、审计、监控、协议协商等能力。
 
-## 后续可扩展
-
-- 使用真实业务 API 替换 `mock-data.ts`
-- 增加 Agent Card / A2A，用于多 Agent 能力发现
-- 增加基础 Catalog 与业务 Catalog 混合示例
-- 增加权限、交易确认和敏感操作二次确认
-- 加入 A2UI schema validation / capabilities negotiation
+当前 POC 已经足够验证的核心问题是：**通通代理能否把“自然语言 → Agent 业务判断 → 业务能力 → 动态 UI → 用户操作 → 异常恢复 → 安全确认”串成一个完整任务闭环。**

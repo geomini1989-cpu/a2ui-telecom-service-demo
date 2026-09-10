@@ -9,7 +9,9 @@ export const getTrafficUsageSkill: SkillDefinition = {
   async execute() {
     const remainingGb = Math.max(0, account.traffic.total - account.traffic.used);
     const daysRemaining = 12;
-    const recentDailyAverageGb = 1.8;
+    // Demo scenario: recent usage has spiked sharply, so the agent has enough evidence
+    // to recommend a larger package and demonstrate recovery when balance is insufficient.
+    const recentDailyAverageGb = 6;
     const projectedNeedGb = Number((recentDailyAverageGb * daysRemaining).toFixed(1));
     const projectedExtraGb = Number(Math.max(0, projectedNeedGb - remainingGb).toFixed(1));
 
@@ -22,7 +24,7 @@ export const getTrafficUsageSkill: SkillDefinition = {
         projectedNeedGb,
         projectedExtraGb,
       },
-      summary: `通用流量剩余 ${remainingGb.toFixed(1)}GB，距周期结束约 ${daysRemaining} 天；按近期每天约 ${recentDailyAverageGb}GB 估算，后续约需要 ${projectedNeedGb}GB。`,
+      summary: `通用流量剩余 ${remainingGb.toFixed(1)}GB，距周期结束约 ${daysRemaining} 天；近期使用明显加快，按每天约 ${recentDailyAverageGb}GB 估算，后续约需要 ${projectedNeedGb}GB，预计额外缺口约 ${projectedExtraGb}GB。`,
     };
   },
 };

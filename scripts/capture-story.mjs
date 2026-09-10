@@ -29,13 +29,15 @@ async function shot(name) {
   await page.screenshot({path: `${out}/${name}.png`, fullPage: true});
 }
 
+const storyPrompt = '我最近刷视频流量用得特别快，月底估计顶不住，帮我推荐个适合的方案';
+
 await waitReady();
 await page.addStyleTag({content: `
   .debug-panel { display: none !important; }
   .page-shell { grid-template-columns: minmax(720px, 900px) !important; justify-content: center !important; }
 `});
 
-await submit('我最近刷视频特别猛，月底估计顶不住，看看有没有适合我的方案');
+await submit(storyPrompt);
 await shot('01-agent-recommendation');
 
 await page.getByRole('button', {name: '去确认'}).click();
@@ -60,7 +62,7 @@ await waitIdle();
 await shot('06-order-success');
 
 await waitReady();
-await submit('我最近刷视频特别猛，月底估计顶不住，看看有没有适合我的方案');
+await submit(storyPrompt);
 await shot('07-debug-trace');
 
 await browser.close();

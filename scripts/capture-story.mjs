@@ -12,10 +12,17 @@ async function waitReady() {
   await page.waitForSelector('input[placeholder*="输入你想查询"]');
 }
 
+async function scrollCurrentIntoView() {
+  const chat = page.locator('.chat-scroll');
+  await chat.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  await page.waitForTimeout(350);
+}
+
 async function waitIdle() {
   await page.waitForTimeout(300);
   await page.waitForSelector('.typing', {state: 'detached', timeout: 15000}).catch(()=>{});
   await page.waitForTimeout(900);
+  await scrollCurrentIntoView();
 }
 
 async function submit(text) {
@@ -26,6 +33,7 @@ async function submit(text) {
 }
 
 async function shot(name) {
+  await scrollCurrentIntoView();
   await page.screenshot({path: `${out}/${name}.png`, fullPage: true});
 }
 

@@ -18,7 +18,8 @@ jobs:
           node-version: 22
       - run: npm install -g npm@11.6.0
       - run: npm install
-      - run: npx --yes playwright@1.55.0 install chromium
+      - run: npm install --no-save playwright@1.55.0
+      - run: npx playwright install chromium
       - name: Start demo
         run: |
           LLM_MODE=mock npm run dev > /tmp/a2ui-demo.log 2>&1 &
@@ -32,7 +33,7 @@ jobs:
           cat /tmp/a2ui-demo.log
           exit 1
       - name: Capture screenshots
-        run: npx --yes -p playwright@1.55.0 node scripts/capture-demo.mjs
+        run: node scripts/capture-demo.mjs
       - name: Upload screenshots
         uses: actions/upload-artifact@v4
         with:

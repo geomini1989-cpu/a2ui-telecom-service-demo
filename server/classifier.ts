@@ -63,7 +63,7 @@ export function mockClassify(message: string, context: ClassificationContext): O
   if (/账单|消费|花了多少/.test(m)) {
     return {intent: 'bill_query', parameters};
   }
-  if (/办.*流量|买.*流量|加.*流量|流量包|最便宜.*30天|要30天|20g|10g|30g/.test(m)) {
+  if (/办.*流量|买.*流量|加.*流量|流量包|最便宜.*30天|要30天|20g|10g|30g|推荐.*流量|流量.*推荐|适合.*方案|撑不到|顶不住/.test(m)) {
     return {intent: 'traffic_purchase', parameters};
   }
   if (/流量/.test(m)) {

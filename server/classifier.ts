@@ -57,7 +57,7 @@ export function mockClassify(message: string, context: ClassificationContext): O
   const month = m.match(/(\d{1,2})\s*月/);
   if (month) parameters.month = Number(month[1]);
 
-  if (/分析|业务情况|趋势|销量|收入|半年|近?\d+\s*天|只看流量/.test(m)) {
+  if (/分析|业务情况|趋势|销量|收入|半年|(?:近|最近)\s*\d+\s*天|只看流量/.test(m)) {
     return {intent: 'business_analysis', parameters};
   }
   if (/账单|消费|花了多少/.test(m)) {

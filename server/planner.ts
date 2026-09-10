@@ -98,12 +98,14 @@ export function planTurn(
 
     case 'traffic_purchase': {
       const order = selectTrafficPackage(session.slots);
+      const maxPrice = typeof session.slots.maxPrice === 'number' ? session.slots.maxPrice : undefined;
       if (order) {
         const selection = {
           type: String(session.slots.type ?? (order.type === '通用流量' ? 'general' : 'directed')),
           duration: String(session.slots.duration ?? (order.duration === '30天' ? '30d' : '7d')),
           packageId: order.packageId,
           recommendationText: typeof session.slots.recommendationReason === 'string' ? session.slots.recommendationReason : undefined,
+          maxPrice,
         };
         result = {
           skill: 'getTrafficPackages',
@@ -118,6 +120,7 @@ export function planTurn(
             parametersComplete: hasTrafficSlots(session.slots),
             selectedPackage: order.packageId,
             skippedPackageSelection: false,
+            maxPrice,
             balancePrechecked: typeof session.slots.balanceSufficient === 'boolean',
             balanceSufficient: typeof session.slots.balanceSufficient === 'boolean' ? session.slots.balanceSufficient : undefined,
             balanceEnforcedOnSubmit: true,
@@ -129,6 +132,8 @@ export function planTurn(
           type: String(session.slots.type ?? 'general'),
           duration: String(session.slots.duration ?? '30d'),
           packageId: '',
+          recommendationText: typeof session.slots.recommendationReason === 'string' ? session.slots.recommendationReason : undefined,
+          maxPrice,
         };
         result = {
           skill: 'getTrafficPackages',
@@ -142,6 +147,7 @@ export function planTurn(
             reason: 'missing_or_ambiguous_parameters',
             parametersComplete: hasTrafficSlots(session.slots),
             knownSlots: session.slots,
+            maxPrice,
           },
         };
       }

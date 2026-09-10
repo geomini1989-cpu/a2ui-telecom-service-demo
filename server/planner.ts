@@ -7,12 +7,10 @@ import {
   billSurface,
   findOrder,
   findOrderByParams,
-  orderSurface,
   packagesSurface,
   resultSurface,
   trafficDetailSurface,
 } from './a2ui-builder.js';
-import {insufficientBalanceSurface} from './basic-builder.js';
 
 export interface PlanResult {
   skill: string;
@@ -100,29 +98,7 @@ export function planTurn(
 
     case 'traffic_purchase': {
       const order = selectTrafficPackage(session.slots);
-      if (order && session.slots.balanceSufficient === false) {
-        const basicSurfaceId = newSurface('recovery');
-        result = {
-          skill: 'validateBalance',
-          taskState: 'insufficient_balance',
-          selectedCard: 'BasicCatalogRecoveryUI',
-          uiStrategy: 'dynamic_basic_catalog',
-          catalog: 'basic',
-          surfaceId: basicSurfaceId,
-          messages: insufficientBalanceSurface(basicSurfaceId, {
-            balance: typeof session.slots.balanceAmount === 'number' ? session.slots.balanceAmount : 0,
-            price: order.price,
-            packageTitle: order.title,
-          }),
-          plannerDecision: {
-            reason: 'balance_insufficient',
-            parametersComplete: hasTrafficSlots(session.slots),
-            selectedPackage: order.packageId,
-            balance: 'validated_by_skill',
-            required: order.price,
-          },
-        };
-      } else if (order) {
+      if (order) {
         const selection = {
           type: String(session.slots.type ?? (order.type === '通用流量' ? 'general' : 'directed')),
           duration: String(session.slots.duration ?? (order.duration === '30天' ? '30d' : '7d')),
@@ -138,10 +114,13 @@ export function planTurn(
           surfaceId,
           messages: packagesSurface(surfaceId, !reuseBusinessSurface, selection),
           plannerDecision: {
-            reason: hasTrafficSlots(session.slots) ? 'parameters_complete_requires_user_confirmation' : 'constraint_resolved_requires_user_confirmation',
+            reason: hasTrafficSlots(session.slots) ? 'parameters_complete_requires_user_selection' : 'recommendation_requires_user_selection',
             parametersComplete: hasTrafficSlots(session.slots),
             selectedPackage: order.packageId,
             skippedPackageSelection: false,
+            balancePrechecked: typeof session.slots.balanceSufficient === 'boolean',
+            balanceSufficient: typeof session.slots.balanceSufficient === 'boolean' ? session.slots.balanceSufficient : undefined,
+            balanceEnforcedOnSubmit: true,
             requiresExplicitConfirmation: true,
           },
         };

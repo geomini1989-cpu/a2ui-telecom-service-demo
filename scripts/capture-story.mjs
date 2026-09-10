@@ -40,24 +40,24 @@ await page.addStyleTag({content: `
 await submit(storyPrompt);
 await shot('01-agent-recommendation');
 
-await page.getByRole('button', {name: '去确认'}).click();
+await page.getByRole('button', {name: '去确认'}).last().click();
 await waitIdle();
 await shot('02-insufficient-balance');
 
-await page.getByRole('button', {name: '看看便宜套餐'}).click();
+await page.getByRole('button', {name: '看看便宜套餐'}).last().click();
 await waitIdle();
 await shot('03-affordable-packages');
 
-const package20 = page.locator('.package-option').filter({hasText: '20GB通用流量·30天'});
+const package20 = page.locator('.package-option').filter({hasText: '20GB通用流量·30天'}).last();
 await package20.click();
 await page.waitForTimeout(400);
 await shot('04-reselect-20gb');
 
-await page.getByRole('button', {name: '去确认'}).click();
+await page.getByRole('button', {name: '去确认'}).last().click();
 await waitIdle();
 await shot('05-order-confirm');
 
-await page.getByRole('button', {name: '确认办理'}).click();
+await page.getByRole('button', {name: '确认办理'}).last().click();
 await waitIdle();
 await shot('06-order-success');
 

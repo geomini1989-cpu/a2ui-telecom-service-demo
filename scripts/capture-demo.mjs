@@ -8,7 +8,7 @@ const browser = await chromium.launch({headless: true});
 const page = await browser.newPage({viewport: {width: 1600, height: 1200}, deviceScaleFactor: 1});
 
 async function waitReady() {
-  await page.goto('http://127.0.0.1:5173', {waitUntil: 'networkidle'});
+  await page.goto('http://localhost:5173', {waitUntil: 'networkidle'});
   await page.waitForSelector('input[placeholder*="输入你想查询"]');
 }
 

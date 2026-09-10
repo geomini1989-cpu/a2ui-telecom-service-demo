@@ -5,6 +5,7 @@ import {runCoordinatorAgent} from './agent/coordinator.js';
 import {planTurn} from './planner.js';
 import {getSession, pushHistory, sessionSnapshot} from './session-store.js';
 import {accountSurface, findOrder, findOrderByParams, orderSurface, packagesSurface, resultSurface} from './a2ui-builder.js';
+import {insufficientBalanceSurface} from './basic-builder.js';
 import {runSkill} from './skills/registry.js';
 
 const app = express();
@@ -194,14 +195,32 @@ app.post('/api/action/stream', async (req, res) => {
 
       case 'show_affordable_packages': {
         const maxPrice = Number(a.context?.maxPrice ?? 0);
+        const preservedType = session.slots.type;
+        const preservedDuration = session.slots.duration;
+        session.slots = {
+          ...(preservedType ? {type: preservedType} : {}),
+          ...(preservedDuration ? {duration: preservedDuration} : {}),
+        };
         session.surfaceId = undefined;
         session.catalog = undefined;
+        session.selectedCard = undefined;
+        session.taskState = 'select_package';
+
         const planned = planTurn(session, {
           intent: 'traffic_purchase',
-          parameters: {maxPrice},
+          parameters: {
+            maxPrice,
+            recommendationReason: `已按当前余额 ¥${maxPrice.toFixed(1)} 筛选可支付套餐，可重新选择。`,
+          },
           classifier: 'mock',
         });
         ({skill, taskState, selectedCard, uiStrategy, catalog, surfaceId, plannerDecision, messages} = planned);
+        plannerDecision = {
+          ...plannerDecision,
+          reason: 'recover_from_insufficient_balance',
+          maxPrice,
+          clearedPreviousRecommendation: true,
+        };
         break;
       }
 
@@ -210,25 +229,70 @@ app.post('/api/action/stream', async (req, res) => {
         const order = findOrder(packageId);
         if (!order) throw new Error('Unknown package');
 
+        const validation = await runSkill('validateBalance', {packageId}, session, false);
+        const balance = validation.output as {sufficient?: boolean; balance?: number; price?: number};
+        const balanceAmount = typeof balance.balance === 'number' ? balance.balance : 0;
+        const sufficient = balance.sufficient === true;
+
         session.activeTask = 'traffic_purchase';
         session.slots = {
           ...session.slots,
           sizeGb: order.sizeGb,
           duration: order.duration === '30天' ? '30d' : '7d',
           type: order.type === '通用流量' ? 'general' : 'directed',
+          recommendedPackageId: packageId,
+          balanceSufficient: sufficient,
+          balanceAmount,
         };
+
+        if (!sufficient) {
+          const recoverySurfaceId = `recovery-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          session.taskState = 'insufficient_balance';
+          session.surfaceId = recoverySurfaceId;
+          session.catalog = 'basic';
+          session.selectedCard = 'BasicCatalogRecoveryUI';
+
+          skill = 'validateBalance';
+          taskState = 'insufficient_balance';
+          selectedCard = 'BasicCatalogRecoveryUI';
+          uiStrategy = 'dynamic_basic_catalog';
+          catalog = 'basic';
+          surfaceId = recoverySurfaceId;
+          plannerDecision = {
+            reason: 'selected_package_balance_insufficient',
+            selectedPackage: packageId,
+            balance: balanceAmount,
+            required: order.price,
+            recoveryAction: 'show_affordable_packages',
+            skillObservation: validation.summary,
+          };
+          messages = insufficientBalanceSurface(recoverySurfaceId, {
+            balance: balanceAmount,
+            price: order.price,
+            packageTitle: order.title,
+          });
+          break;
+        }
+
         session.taskState = 'confirm_order';
         session.surfaceId = a.surfaceId;
         session.catalog = 'business';
         session.selectedCard = 'OrderConfirmCard';
 
-        skill = 'buildOrderPreview';
+        skill = 'validateBalance';
         taskState = 'confirm_order';
         selectedCard = 'OrderConfirmCard';
         uiStrategy = 'replace_component';
         catalog = 'business';
         surfaceId = a.surfaceId;
-        plannerDecision = {reason: 'package_selected', selectedPackage: packageId};
+        plannerDecision = {
+          reason: 'package_selected_balance_validated',
+          selectedPackage: packageId,
+          balance: balanceAmount,
+          required: order.price,
+          requiresExplicitConfirmation: true,
+          skillObservation: validation.summary,
+        };
         messages = orderSurface(a.surfaceId, order, false);
         break;
       }

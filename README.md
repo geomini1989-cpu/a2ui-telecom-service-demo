@@ -1,6 +1,6 @@
 # A2UI Telecom Service Demo
 
-一个面向内部技术演示的 **React + A2UI v0.9.1 + DeepSeek Tool Calling + 运营商业务 Catalog** POC。
+一个面向内部技术演示的 **React + A2UI v0.9 消息协议 + LangGraph TypeScript + DeepSeek Tool Calling + 运营商业务 Catalog** POC。
 
 > 核心边界：**Agent 决定做什么；Skill 获取或执行业务能力；UI Policy 决定当前状态该展示什么；A2UI 负责表达 UI 和交互；React 负责最终视觉。**
 
@@ -231,12 +231,46 @@ UI 的选择依据是“当前任务 + 当前状态 + 业务结果”，而不�
 - `deterministic_action`：卡片上的明确 A2UI Action；
 - `confirmation_gate`：办理前的自然语言显式确认门。
 
+## LangGraph 持久化业务流程
+
+外层业务流程由真正的 `StateGraph` 执行；原有 Coordinator 在 `understand` 节点中继续使用原生只读 Tool Calling Loop。模型推荐结果经过 UI Policy 和确定性订单约束后，才进入确认流程。
+
+```text
+understand → plan_ui → present
+                 └→ prepare_order → await_confirmation (interrupt)
+                                       ├→ execute_order → present
+                                       └→ cancel_order → present
+```
+
+- `await_confirmation` 使用 LangGraph 的 `interrupt` 暂停，用户按钮或精确文本“确认办理”通过 `Command` 恢复同一个图。其他文本不会授权办理；“取消”可以取消待办订单。
+- SQLite 保存会话、版本、模拟余额账本、不可变的订单快照、结果回执、完整的当前 A2UI Surface 和 LangGraph 检查点。前端使用稳定的会话标识，刷新页面或重启服务可以恢复当前界面。
+- Node 24 内置 `node:sqlite` 驱动实现 `BaseCheckpointSaver` 接口；无需安装 `better-sqlite3` 或 Windows C++ 编译工具。
+- 每个 Action 携带界面生成时的会话版本，确认 Action 还绑定待办订单标识。旧卡片、错配套餐和跨会话提交会被拒绝。
+- 模拟扣费、回执和会话更新在同一 SQLite 事务中完成，重复确认同一订单返回原结果。办理前重新检查套餐快照和余额；余额不足返回恢复卡片，套餐变化则要求重新选择。
+- 单个服务实例按会话串行执行请求；SQLite 事务和版本校验保护账本写入。当前没有多实例工作流调度，也不提供真实运营商交易的“恰好一次”保证。
+- NDJSON 发送的是 A2UI 和执行结果消息，不是模型 token 流；已移除原有固定 120ms 的演示延迟。
+
+### 接口与恢复
+
+```text
+GET  /api/health
+GET  /api/session/:id
+POST /api/chat/stream    { sessionId, message, expectedVersion }
+POST /api/action/stream  { sessionId, action }
+```
+
+聊天请求的 `expectedVersion` 来自恢复接口或响应的 `demoDebug.sessionVersion`；Action 的 `context.sessionVersion` 与 `context.pendingOrderId` 由服务端写入 A2UI。发生 409 时前端恢复最新状态并提示用户重新操作。浏览器“新会话”按钮新建独立的模拟账户，不删除旧会话。
+
+默认持久化目录为 `.data`，可通过 `TELECOM_DATA_DIR` 修改；运行数据不会提交到 Git。
+
 ## 本地运行
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
+
+需要 Node.js 24.13 或更新的 24.x 版本。
 
 - React / Vite：`http://localhost:5173`
 - Demo server：`http://localhost:8787`
@@ -269,6 +303,11 @@ server/
 ├── planner.ts            # Task Result → UI Policy
 ├── a2ui-builder.ts       # Business Catalog A2UI messages
 ├── basic-builder.ts      # Basic Catalog recovery UI
+├── workflow.ts           # LangGraph 节点、interrupt / Command 与会话串行化
+├── checkpointer.ts       # Node SQLite 检查点适配
+├── database.ts           # 会话 / 订单 / 模拟余额账本事务
+├── app.ts                # 可测试的 Express 应用与恢复接口
+├── action-router.ts      # 受控界面操作路由
 ├── session-store.ts
 ├── mock-data.ts
 └── index.ts              # Chat / Action / Confirmation Guard
@@ -276,6 +315,19 @@ server/
 
 ## 当前边界
 
-这是用于内部技术预研的完整 POC，不是生产系统。目前业务数据和 `executeOrder` 都是 Demo/mock；尚未接真实 BSS / CRM / 计费 / 订单系统，也没有完整生产权限、幂等、审计、监控、协议协商等能力。
+这是用于内部技术预研的完整 POC，不是生产系统。目前业务数据和办理都是 Demo/mock。已实现 SQLite 持久化、可恢复确认和模拟订单幂等；尚未接真实 BSS / CRM / 计费 / 订单系统，也没有生产级认证授权、完整审计、监控或协议协商。持有会话标识即可访问对应演示会话，部署到外网前必须补认证和会话归属校验。
 
 当前 POC 已经足够验证的核心问题是：**通通代理能否把“自然语言 → Agent 业务判断 → 业务能力 → 动态 UI → 用户操作 → 异常恢复 → 安全确认”串成一个完整任务闭环。**
+
+## 验证
+
+```sh
+npm run typecheck
+npm test
+npm run build
+npm run test:e2e
+```
+
+集成测试真实执行 LangGraph 与 SQLite，覆盖重启恢复、并发重复确认、旧卡片/跨会话拒绝、确认前余额和套餐变化、模型工具循环、越权工具拒绝及模型失败兜底。模型调用使用协议夹具，不代表真实模型效果成绩。
+
+浏览器测试使用独立端口 5178/8790 和 `.data/e2e` 数据库，验证刷新恢复、余额不足重选与跨标签页冲突。默认使用本机 Microsoft Edge；CI 使用安装的 Playwright Chromium。

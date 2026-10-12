@@ -6,7 +6,7 @@ export const getTrafficUsageSkill: SkillDefinition = {
   name: 'getTrafficUsage',
   description: '读取当前流量使用情况，并给出近期使用速度和剩余周期的需求估算。',
   sideEffect: false,
-  async execute() {
+  async execute(_args, session) {
     const remainingGb = Math.max(0, account.traffic.total - account.traffic.used);
     const daysRemaining = 12;
     // Demo scenario: recent usage has spiked sharply, so the agent has enough evidence
@@ -17,7 +17,7 @@ export const getTrafficUsageSkill: SkillDefinition = {
 
     return {
       data: {
-        account,
+        account: {...account, balance: session.balanceCents / 100},
         remainingGb,
         daysRemaining,
         recentDailyAverageGb,

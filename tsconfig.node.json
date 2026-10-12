@@ -6,12 +6,19 @@
     "moduleResolution": "NodeNext",
     "allowSyntheticDefaultImports": true,
     "strict": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "noEmit": true
   },
   "include": [
     "vite.config.ts",
     "server",
     "src/types.ts",
-    "src/a2ui/constants.ts"
+    "src/a2ui/constants.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "vite.e2e.config.ts",
+    "e2e"
   ]
 }

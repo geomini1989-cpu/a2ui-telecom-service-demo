@@ -7,6 +7,8 @@ export type Intent =
   | 'customer_service';
 
 export interface DebugMeta {
+  sessionVersion?: number;
+  workflow?: {engine: string; nodes: string[]; waiting: boolean};
   intent: Intent;
   parameters: Record<string, unknown>;
   mergedSlots?: Record<string, unknown>;

@@ -104,17 +104,17 @@ const TrafficPackageCardApi = {
 const TrafficPackageCard = createComponentImplementation(TrafficPackageCardApi, ({props}) => {
   const packages = Array.isArray(props.packages) ? (props.packages as unknown as TrafficPackage[]) : [];
   const visible = packages.filter(p => p.type === props.selectedType && p.duration === props.selectedDuration);
-  const selected = packages.find(p => p.id === props.selectedPackageId);
+  const selected = visible.find(p => p.id === props.selectedPackageId);
   return (
     <section className="telecom-card package-card">
       <div className="card-heading"><div><small>流量加油包</small><h2>选择适合你的规格</h2></div><span className="chip">可办理</span></div>
       <div className="filter-block"><label>流量类型</label><div className="segmented">
-        <button className={props.selectedType === 'general' ? 'active' : ''} onClick={() => props.setSelectedType('general')}>通用流量</button>
-        <button className={props.selectedType === 'directed' ? 'active' : ''} onClick={() => props.setSelectedType('directed')}>定向流量</button>
+        <button className={props.selectedType === 'general' ? 'active' : ''} onClick={() => {props.setSelectedPackageId(''); props.setSelectedType('general');}}>通用流量</button>
+        <button className={props.selectedType === 'directed' ? 'active' : ''} onClick={() => {props.setSelectedPackageId(''); props.setSelectedType('directed');}}>定向流量</button>
       </div></div>
       <div className="filter-block"><label>有效期</label><div className="segmented">
-        <button className={props.selectedDuration === '7d' ? 'active' : ''} onClick={() => props.setSelectedDuration('7d')}>7天</button>
-        <button className={props.selectedDuration === '30d' ? 'active' : ''} onClick={() => props.setSelectedDuration('30d')}>30天</button>
+        <button className={props.selectedDuration === '7d' ? 'active' : ''} onClick={() => {props.setSelectedPackageId(''); props.setSelectedDuration('7d');}}>7天</button>
+        <button className={props.selectedDuration === '30d' ? 'active' : ''} onClick={() => {props.setSelectedPackageId(''); props.setSelectedDuration('30d');}}>30天</button>
       </div></div>
       {props.recommendationText ? <div className="notice">{props.recommendationText}</div> : null}
       <div className="package-list">

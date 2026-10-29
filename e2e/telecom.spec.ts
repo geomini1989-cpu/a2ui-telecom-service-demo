@@ -44,3 +44,21 @@ test('shows an API conflict and restores the current card after another tab chan
   await page.getByRole('button',{name:'恢复会话',exact:true}).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
+
+test('changing filters clears the previous selection before confirmation', async ({page}) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', {name:'发送', exact:true})).toBeEnabled();
+  await send(page, '给我办个20G 30天通用流量包');
+  const card = page.locator('.package-card').last();
+  await expect(card.getByRole('button', {name:'去确认', exact:true})).toBeEnabled();
+  await card.getByRole('button', {name:'7天', exact:true}).click();
+  await expect(card.getByRole('button', {name:'去确认', exact:true})).toBeDisabled();
+  await expect(card.locator('.selection-summary')).toContainText('请选择套餐');
+  await card.getByRole('button').filter({hasText:'10GB通用流量·7天'}).click();
+  await expect(card.getByRole('button', {name:'去确认', exact:true})).toBeEnabled();
+  await card.getByRole('button', {name:'定向流量', exact:true}).click();
+  await expect(card.getByRole('button', {name:'去确认', exact:true})).toBeDisabled();
+  await card.getByRole('button').filter({hasText:'10GB视频定向·7天'}).click();
+  await card.getByRole('button', {name:'去确认', exact:true}).click();
+  await expect(page.locator('.confirm-card')).toContainText('10GB视频定向·7天');
+});

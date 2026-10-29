@@ -211,3 +211,17 @@ describe('durable telecom workflow',() => {
     expect(invalid.status).toBe(400);
   });
 });
+
+describe('package recommendation invalidation', () => {
+  it('drops the old recommendation when new size has no matching package', async () => {
+    await chat('给我办个20G 30天通用流量包');
+    const result = await chat('改成50G');
+    const current = store.getSession('test');
+    expect(current.slots.sizeGb).toBe(50);
+    expect(current.slots.recommendedPackageId).toBeUndefined();
+    expect(current.slots.balanceSufficient).toBeUndefined();
+    const model = (result.find((m: any) => m.updateDataModel?.path === '/') as any).updateDataModel.value;
+    expect(model.selection.packageId).toBe('');
+    expect(model.selection.recommendationText).not.toContain('20GB');
+  });
+});

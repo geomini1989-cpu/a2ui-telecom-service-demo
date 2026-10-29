@@ -31,10 +31,17 @@ function hasTrafficSlots(slots: Record<string, unknown>) {
   return Boolean(slots.sizeGb && slots.duration && slots.type);
 }
 
+function matchesTrafficSlots(p: (typeof trafficPackages)[number], slots: Record<string, unknown>) {
+  return (slots.sizeGb === undefined || p.sizeGb === slots.sizeGb)
+    && (slots.duration === undefined || p.duration === slots.duration)
+    && (slots.type === undefined || p.type === slots.type)
+    && (typeof slots.maxPrice !== 'number' || p.price <= slots.maxPrice);
+}
+
 function selectTrafficPackage(slots: Record<string, unknown>) {
   if (typeof slots.recommendedPackageId === 'string') {
     const recommended = trafficPackages.find(p => p.id === slots.recommendedPackageId);
-    if (recommended) return findOrder(recommended.id);
+    if (recommended && matchesTrafficSlots(recommended, slots)) return findOrder(recommended.id);
   }
 
   const maxPrice = typeof slots.maxPrice === 'number' ? slots.maxPrice : undefined;
@@ -72,7 +79,21 @@ export function planTurn(
   }
 
   session.activeTask = classification.intent;
+  const conditionsChanged = ['sizeGb', 'duration', 'type', 'maxPrice', 'preference'].some(
+    key => Object.hasOwn(classification.parameters, key) && classification.parameters[key] !== session.slots[key],
+  );
+  if (conditionsChanged) {
+    for (const key of ['recommendedPackageId', 'recommendationReason', 'balanceSufficient', 'balanceAmount']) {
+      delete session.slots[key];
+    }
+  }
   session.slots = {...session.slots, ...classification.parameters};
+  const recommended = trafficPackages.find(p => p.id === session.slots.recommendedPackageId);
+  if (session.slots.recommendedPackageId && (!recommended || !matchesTrafficSlots(recommended, session.slots))) {
+    for (const key of ['recommendedPackageId', 'recommendationReason', 'balanceSufficient', 'balanceAmount']) {
+      delete session.slots[key];
+    }
+  }
 
   const reuseBusinessSurface = Boolean(
     requestedCanReuseBusinessSurface ||
@@ -132,7 +153,9 @@ export function planTurn(
           type: String(session.slots.type ?? 'general'),
           duration: String(session.slots.duration ?? '30d'),
           packageId: '',
-          recommendationText: typeof session.slots.recommendationReason === 'string' ? session.slots.recommendationReason : undefined,
+          recommendationText: !trafficPackages.some(p => matchesTrafficSlots(p, session.slots))
+            ? '没有符合当前条件的套餐，请调整规格或预算。'
+            : (typeof session.slots.recommendationReason === 'string' ? session.slots.recommendationReason : undefined),
           maxPrice,
         };
         result = {
